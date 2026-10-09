@@ -629,15 +629,14 @@ function handleFreebuffGateError(
 ) {
   if (
     kind === 'session_expired' ||
-    kind === 'session_superseded' ||
-    kind === 'rate_limited' ||
-    kind === 'spend_limited'
+    kind === 'session_superseded'
   ) {
     if (tryAutoSwitchOnMidRunLimit(opts.serverMessage || kind)) {
       updater.markComplete()
       return
     }
   }
+
 
   switch (kind) {
     case 'session_expired':

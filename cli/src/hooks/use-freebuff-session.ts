@@ -244,9 +244,8 @@ export async function restartFreebuffSession(
   const currentSession = useFreebuffSessionStore.getState().session
   const currentAttempt = useFreebuffSessionStore.getState().pendingAdmission
   const stillCurrent = () =>
-    controller === currentController &&
-    getAuthTokenDetails().token === currentToken &&
-    useFreebuffSessionStore.getState().session === currentSession
+    controller === currentController
+
   currentController?.abort()
   if (opts.releaseSlot) {
     try {
@@ -1123,8 +1122,7 @@ export function useFreebuffSession({
               getSelectedFreebuffModel(),
             ),
         })
-        if (cancelled || signal.aborted || generation !== restartGeneration ||
-            useFreebuffSessionStore.getState().session !== current) return
+        if (cancelled || signal.aborted || generation !== restartGeneration) return
         // Refresh an idle catalog without adopting a different process's slot.
         if (!holdsLiveFreebuffSlot(current) && response.status === 'active') {
           apply(toLandingSession(response))

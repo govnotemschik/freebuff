@@ -169,12 +169,13 @@ export function useFreebuffChatAdmission(enabled: boolean) {
 
     // If an admission failed due to insufficient Freebucks, rate limit, or tab limit, auto-switch
     if (admission.phase === 'failed') {
+      const msg = admission.message || ''
       if (
         /not enough freebucks|rate.?limit|freebucks|quota|plans|one tab|429|spend_limited/i.test(
-          admission.message,
+          msg,
         )
       ) {
-        if (autoSwitchToNextAccount(admission.message)) {
+        if (autoSwitchToNextAccount(msg)) {
           return
         }
       }
@@ -184,13 +185,14 @@ export function useFreebuffChatAdmission(enabled: boolean) {
       const isRateLimit =
         session?.status === 'rate_limited' ||
         session?.status === 'spend_limited' ||
-        Boolean(session?.freebucksShortfall) ||
+        (session && 'freebucksShortfall' in session && Boolean((session as any).freebucksShortfall)) ||
         Boolean(
           failure &&
             /rate.?limit|freebucks|quota|429|one tab|not enough/i.test(
               failure.message,
             ),
         )
+
 
       if (isRateLimit) {
         if (autoSwitchToNextAccount('rate limit or quota reached')) {
@@ -222,7 +224,7 @@ export function useFreebuffChatAdmission(enabled: boolean) {
     }
     if (admission.phase !== 'requested') return
     if (!session) {
-      if (failure && !failure.retry)
+      if (failure && !failure.retry) {
         useFreebuffChatStore.setState({
           admission: {
             ...admission,
@@ -230,8 +232,13 @@ export function useFreebuffChatAdmission(enabled: boolean) {
             message: failure.message,
           },
         })
+      } else {
+        // Session might be null due to account switch or initial load. Actively refresh metadata!
+        void refreshFreebuffSessionMetadata().catch(() => {})
+      }
       return
     }
+
     if (!admission.metadataChecked) {
       if (checking.current === admission) return
       checking.current = admission

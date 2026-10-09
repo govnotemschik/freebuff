@@ -647,12 +647,18 @@ export function autoSwitchAccount(
       const targetModel = currentAdmission?.model || 'z-ai/glm-5.3-flash'
       useFreebuffChatStore.setState({
         admission: {
-          phase: 'requested',
+          phase: 'starting',
           model: targetModel,
-          metadataChecked: false,
+          metadataChecked: true,
         },
       })
+      const { startFreebuffSession } = require('../hooks/use-freebuff-session')
+      void startFreebuffSession(targetModel, {
+        preserveQueue: true,
+        persistSelection: false,
+      }).catch(() => {})
     } catch {}
+
 
     return { switched: true, previous, next }
   } catch {
