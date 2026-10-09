@@ -139,35 +139,9 @@ function autoSwitchToNextAccount(
   requiredFreebucks: number = 10,
 ): boolean {
   try {
-    const {
-      loadRegistry,
-      switchNext,
-      markAccountLimited,
-    } = require('../accounts/account-manager')
-    const reg = loadRegistry()
-    if (!reg.autoSwitchOnLimit) return false
-
-    const previousName = reg.activeAccount
-    if (previousName) {
-      failedInCurrentRun.add(previousName)
-      markAccountLimited(previousName, reason)
-    }
-
-    const { previous, next } = switchNext(
-      requiredFreebucks,
-      Array.from(failedInCurrentRun),
-    )
-    if (!next || next.name === previous?.name) return false
-
-    process.env.FREEBUFF_CONFIG_DIR = next.configDir
-    const { setCachedKeychainToken } = require('../utils/auth-token-store')
-    setCachedKeychainToken(next.authToken)
-
-    const { setApiClientAuthToken } = require('../utils/codebuff-api')
-    setApiClientAuthToken(next.authToken)
-
-    const { useAccountModalStore } = require('../state/account-modal-store')
-    useAccountModalStore.getState().loadAccounts()
+    const { autoSwitchAccount } = require('../accounts/account-manager')
+    const { switched, previous, next } = autoSwitchAccount(reason, requiredFreebucks)
+    if (!switched || !next) return false
 
     const { useChatStore } = require('../state/chat-store')
     const { getSystemMessage } = require('../utils/message-history')
@@ -178,21 +152,6 @@ function autoSwitchToNextAccount(
       ),
     ])
 
-    // Invalidate stale session
-    useFreebuffSessionStore.getState().setSession(null)
-    useFreebuffSessionStore.getState().setFailure(null)
-
-    // Reset admission to requested so it re-evaluates fresh quota for the new account
-    const currentAdmission = useFreebuffChatStore.getState().admission
-    const targetModel = currentAdmission?.model || 'z-ai/glm-5.3-flash'
-
-    useFreebuffChatStore.setState({
-      admission: {
-        phase: 'requested',
-        model: targetModel,
-        metadataChecked: false,
-      },
-    })
     return true
   } catch {
     return false

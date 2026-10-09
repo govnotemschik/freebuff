@@ -449,6 +449,11 @@ export const handleRunCompletion = (params: {
       ? getFreebuffRateLimitErrorMessage(output)
       : null
     if (freebuffRateLimitMessage) {
+      if (tryAutoSwitchOnMidRunLimit(freebuffRateLimitMessage)) {
+        updater.markComplete()
+        finalizeAfterError()
+        return
+      }
       updater.setError(freebuffRateLimitMessage)
       finalizeAfterError()
       return
@@ -576,6 +581,10 @@ export const handleRunError = (params: {
     ? getFreebuffRateLimitErrorMessage(error)
     : null
   if (freebuffRateLimitMessage) {
+    if (tryAutoSwitchOnMidRunLimit(freebuffRateLimitMessage)) {
+      updater.markComplete()
+      return
+    }
     updater.setError(freebuffRateLimitMessage)
     return
   }
@@ -583,6 +592,29 @@ export const handleRunError = (params: {
   // Use setError for all errors so they display in UserErrorBanner consistently
   const errorMessage = errorInfo.message || 'An unexpected error occurred'
   updater.setError(errorMessage)
+}
+
+function tryAutoSwitchOnMidRunLimit(reason: string): boolean {
+  try {
+    const { autoSwitchAccount } = require('../../accounts/account-manager')
+    const { switched, previous, next } = autoSwitchAccount(reason)
+    if (!switched || !next) return false
+
+    const { useChatStore } = require('../../state/chat-store')
+    const { getSystemMessage } = require('../../utils/message-history')
+    useChatStore.getState().setMessages((prev: any) => [
+      ...prev,
+      getSystemMessage(
+        `⚡ Limit reached on **${previous?.name || 'current'}** (${reason}). Auto-switched to **${next.name}** (${next.freebucks?.total ?? 25} Freebucks). Retrying prompt...`,
+      ),
+    ])
+
+    const { restartFreebuffSession } = require('../use-freebuff-session')
+    restartFreebuffSession('rejoin', { rotateClaim: true }).catch(() => {})
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -595,6 +627,18 @@ function handleFreebuffGateError(
   updater: BatchedMessageUpdater,
   opts: { messageWasDropped?: boolean; serverMessage?: string } = {},
 ) {
+  if (
+    kind === 'session_expired' ||
+    kind === 'session_superseded' ||
+    kind === 'rate_limited' ||
+    kind === 'spend_limited'
+  ) {
+    if (tryAutoSwitchOnMidRunLimit(opts.serverMessage || kind)) {
+      updater.markComplete()
+      return
+    }
+  }
+
   switch (kind) {
     case 'session_expired':
     case 'waiting_room_required':

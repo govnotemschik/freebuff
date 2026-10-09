@@ -293,6 +293,21 @@ const FINAL_REFUSALS: readonly {
     fallbackMessage: FREEBUFF_TURN_SPEND_LIMIT_MESSAGE,
   },
   {
+    status: 429,
+    error: 'free_mode_rate_limited',
+    fallbackMessage: 'Rate limit reached on current session.',
+  },
+  {
+    status: 402,
+    error: 'out_of_credits',
+    fallbackMessage: 'Out of credits or Freebucks on this account.',
+  },
+  {
+    status: FREEBUFF_GATE_CODES.session_expired.status,
+    error: 'session_expired',
+    fallbackMessage: 'This Freebuff session has expired.',
+  },
+  {
     status: FREEBUFF_GATE_CODES.session_superseded.status,
     error: 'session_superseded',
     fallbackMessage:

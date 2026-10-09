@@ -91,8 +91,10 @@ export async function getCodebuffClient(
         // adds nothing, and BYOK requests never consult it.
         ...(apiKey
           ? {
-              requestHeaders: (request) =>
-                freebuffCatalogCompletionHeaders(apiKey, request),
+              requestHeaders: (request) => {
+                const currentToken = getAuthTokenDetails().token || apiKey
+                return freebuffCatalogCompletionHeaders(currentToken, request)
+              },
             }
           : {}),
         cwd: projectRoot,

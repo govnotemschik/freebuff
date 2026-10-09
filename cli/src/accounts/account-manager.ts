@@ -223,7 +223,7 @@ export function switchAccount(name: string): AccountProfile {
     logger.debug({ error }, 'Could not write credentials to profile dir')
   }
 
-  // 3. Update in-memory keychain cache and api client token
+  // 3. Update in-memory keychain cache, api client token, and reset SDK client
   try {
     const { setCachedKeychainToken } = require('../utils/auth-token-store')
     setCachedKeychainToken(account.authToken)
@@ -231,6 +231,10 @@ export function switchAccount(name: string): AccountProfile {
   try {
     const { setApiClientAuthToken } = require('../utils/codebuff-api')
     setApiClientAuthToken(account.authToken)
+  } catch {}
+  try {
+    const { resetCodebuffClient } = require('../utils/codebuff-client')
+    resetCodebuffClient()
   } catch {}
 
   // 4. Sync credentials to ~/.config/manicode/credentials.json for backward compatibility
@@ -601,6 +605,59 @@ export function switchNext(
   }
   switchAccount(next.name)
   return { previous, next, reason }
+}
+
+const failedInActiveRun = new Set<string>()
+
+export function autoSwitchAccount(
+  reason: string,
+  minFreebucks: number = 10,
+): { switched: boolean; previous?: AccountProfile | null; next?: AccountProfile } {
+  try {
+    const reg = loadRegistry()
+    if (!reg.autoSwitchOnLimit) return { switched: false }
+
+    const previousName = reg.activeAccount
+    if (previousName) {
+      failedInActiveRun.add(previousName)
+      markAccountLimited(previousName, reason)
+    }
+
+    const { previous, next } = switchNext(
+      minFreebucks,
+      Array.from(failedInActiveRun),
+    )
+    if (!next || next.name === previous?.name) return { switched: false }
+
+    // Synchronize UI stores
+    try {
+      const { useAccountModalStore } = require('../state/account-modal-store')
+      useAccountModalStore.getState().loadAccounts()
+    } catch {}
+
+    try {
+      const { useFreebuffSessionStore } = require('../state/freebuff-session-store')
+      useFreebuffSessionStore.getState().setSession(null)
+      useFreebuffSessionStore.getState().setFailure(null)
+    } catch {}
+
+    try {
+      const { useFreebuffChatStore } = require('../state/freebuff-chat-store')
+      const currentAdmission = useFreebuffChatStore.getState().admission
+      const targetModel = currentAdmission?.model || 'z-ai/glm-5.3-flash'
+      useFreebuffChatStore.setState({
+        admission: {
+          phase: 'requested',
+          model: targetModel,
+          metadataChecked: false,
+        },
+      })
+    } catch {}
+
+    return { switched: true, previous, next }
+  } catch {
+    return { switched: false }
+  }
 }
 
 export async function importAccount(
